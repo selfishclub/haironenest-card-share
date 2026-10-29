@@ -1,0 +1,6 @@
+{
+  "name": "haironenest-card",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": { "test": "node --test store.test.js db.test.js stock.test.js cancel.test.js wait.test.js api.test.js timeline.test.js remind.test.js remind-api.test.js" }
+}

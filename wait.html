@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>헤어원네스트 예약 대기</title>
+<link rel="icon" href="icons/scissors.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/scissors.png">
+<meta name="theme-color" content="#f6ebdf">
+<style>
+  :root { --ink: #222; --muted: #777; --line: #ddd; --bg: #faf9f7; --accent: #8a5a3c; --accent-bg: #f3ebe4; --danger: #b3261e; --ok: #2e6b3a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; font-size: 16px; line-height: 1.5; }
+  main { max-width: 520px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h1 small { display: block; font-size: 14px; color: var(--muted); font-weight: normal; }
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  .box { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 14px 0; }
+  .box.how { background: var(--accent-bg); border-color: #e4d5c8; }
+  .how ol { margin: 6px 0 0; padding-left: 20px; }
+  .how li { margin: 4px 0; }
+  label { display: block; font-weight: 600; margin: 12px 0 4px; }
+  label small { font-weight: normal; color: var(--muted); margin-left: 4px; }
+  input[type=text], input[type=tel], input[type=date], select, textarea { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; }
+  textarea { min-height: 64px; resize: vertical; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chips label { margin: 0; font-weight: normal; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; background: #fff; display: inline-flex; align-items: center; gap: 6px; }
+  .chips label:has(input:checked) { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .agree { display: flex; gap: 8px; align-items: flex-start; font-weight: normal; margin-top: 14px; font-size: 14px; }
+  .agree input { margin-top: 4px; }
+  button { font: inherit; border: none; border-radius: 10px; padding: 14px 18px; background: var(--accent); color: #fff; font-weight: 700; width: 100%; margin-top: 14px; cursor: pointer; }
+  button.secondary { background: #fff; color: var(--accent); border: 1px solid var(--accent); }
+  button.link { background: none; color: var(--muted); width: auto; padding: 6px 8px; font-weight: normal; text-decoration: underline; margin: 0; }
+  button[disabled] { opacity: .5; cursor: default; }
+  .msg { margin-top: 10px; font-size: 14px; min-height: 1.2em; }
+  .msg.error { color: var(--danger); }
+  .msg.ok { color: var(--ok); }
+  .hint { color: var(--muted); font-size: 14px; margin: 6px 0 0; }
+  .result b.big { font-size: 28px; display: block; }
+  .wait-row { padding: 12px 0; border-top: 1px solid var(--line); }
+  .wait-row:first-child { border-top: 0; }
+  .wait-row .svc { font-weight: 700; }
+  .wait-row .pos { color: var(--accent); font-weight: 700; }
+  .wait-row .status { color: var(--muted); font-size: 14px; }
+  .wait-row .acts { display: flex; gap: 10px; margin-top: 6px; }
+  .wait-row .acts button { width: auto; margin: 0; padding: 8px 12px; font-size: 14px; }
+  .code { font-family: ui-monospace, monospace; letter-spacing: 2px; font-size: 20px; }
+  footer { color: var(--muted); font-size: 13px; margin-top: 30px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>헤어원네스트 예약 대기 <small>평택 · 원장 이은</small></h1>
+
+  <div class="box how">
+    <b>이렇게 돼요</b>
+    <ol>
+      <li>네이버 예약이 꽉 차서 못 잡으셨죠. 여기에 <b>원하는 달·요일·시간대·시술</b>을 적어 두세요.</li>
+      <li>취소로 자리가 나면 <b>먼저 신청하신 분부터 <span class="notify-n">3</span>분께</b> 한꺼번에 문자를 드려요. 문자를 받으신 분은 대기 순서가 맨 뒤로 가요(대기는 그대로).</li>
+      <li>문자를 받으면 <b>네이버 예약에서 직접</b> 잡으세요. 먼저 잡는 분이 가져가요(선착순). 원장이 따로 연락하거나 자리를 잡아 두지는 않아요.</li>
+    </ol>
+    <p class="hint">대기를 걸었다고 예약이 된 건 아니에요. 그래도 자리가 나는 걸 가장 먼저 아는 방법이에요. 대기는 고르신 달이 끝나면 저절로 끝나요.</p>
+  </div>
+
+  <div class="box" id="form-box">
+    <h2>대기 걸기</h2>
+    <form id="f" autocomplete="on">
+      <label>원하는 시술</label>
+      <select name="service" id="service" required><option value="">고르세요</option></select>
+      <label>희망 월 <small>한 달만 골라요</small></label>
+      <div class="chips" id="months"></div>
+      <label>요일 <small>둘 다 골라도 돼요</small></label>
+      <div class="chips" id="days"></div>
+      <label>시간대 <small>여러 개 골라도 돼요</small></label>
+      <div class="chips" id="windows"></div>
+      <label>이름</label>
+      <input type="text" name="name" required maxlength="30" placeholder="예약할 때 쓰는 이름">
+      <label>휴대폰 번호 <small>문자를 받을 번호</small></label>
+      <input type="tel" name="phone" required inputmode="numeric" placeholder="010-0000-0000">
+      <label>하고 싶은 말 <small>안 적어도 돼요</small></label>
+      <textarea name="note" maxlength="200" placeholder="예) 토요일 오전이면 더 좋아요"></textarea>
+      <input type="text" name="website" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px" aria-hidden="true">
+      <label class="agree"><input type="checkbox" name="agree" required> 이름과 번호는 자리 안내 문자에만 쓰고, 고르신 달이 끝나면 지워요. 예약은 네이버에서 선착순이라는 것을 알았어요.</label>
+      <button type="submit" id="submit">대기 걸기</button>
+      <div class="msg" id="msg"></div>
+    </form>
+  </div>
+
+  <div class="box result" id="result" hidden>
+    <h2>접수됐어요</h2>
+    <p id="result-text"></p>
+    <p>확인번호 <span class="code" id="result-code"></span></p>
+    <p class="hint" id="result-sms"></p>
+    <p class="hint">이 화면을 캡처해 두시거나, 아래 "내 대기 보기"에서 번호와 확인번호로 언제든 보실 수 있어요.</p>
+    <button type="button" class="secondary" id="again">다른 대기 하나 더 걸기</button>
+  </div>
+
+  <div class="box" id="mine-box">
+    <h2>내 대기 보기 · 바꾸기 · 빼기</h2>
+    <form id="mine-form">
+      <label>휴대폰 번호</label>
+      <input type="tel" id="mine-phone" inputmode="numeric" placeholder="010-0000-0000">
+      <label>확인번호 <small>접수할 때 받은 여섯 자리</small></label>
+      <input type="text" id="mine-code" inputmode="numeric" maxlength="6" placeholder="000000">
+      <button type="submit" class="secondary">보기</button>
+      <div class="msg" id="mine-msg"></div>
+    </form>
+    <div id="mine-list"></div>
+  </div>
+
+  <footer>문의는 네이버 톡톡이나 매장 전화로. 이 페이지는 헤어원네스트 상담 카드의 일부예요.</footer>
+</main>
+<script>
+(() => {
+  const $ = (q) => document.querySelector(q);
+  const DEMO = new URLSearchParams(location.search).has('demo');   // 서버 없이 모양만 보는 시험 모드
+  const params = new URLSearchParams(location.search);
+  let meta = null;   // 시술 목록·시간대·오늘
+  let editing = null;   // 바꾸는 중인 대기 {id, code}
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const show = (el, text, kind) => { el.textContent = text; el.className = `msg ${kind || ''}`; };
+  const labelOf = (keys, list) => (list ?? meta?.windows ?? []).filter((w) => (keys ?? []).includes(w.key)).map((w) => w.label).join('·');
+  const monthKo = (ym) => `${Number(ym.slice(5, 7))}월`;
+  const whenOf = (w) => `${monthKo(w.month)} ${labelOf(w.days, meta?.days)} ${labelOf(w.windows)}`;
+  // 고르는 칸: 달은 하나(radio), 요일·시간대는 여러 개(checkbox)
+  const monthChips = (name, picked) => (meta?.months ?? []).map((m, i) => `<label><input type="radio" name="${name}" value="${m}" ${picked === m ? 'checked' : ''}> ${monthKo(m)}${i === 0 ? ' <small>이번 달</small>' : ''}</label>`).join('');
+  const dayChips = (cls, picked) => (meta?.days ?? []).map((d) => `<label><input type="checkbox" class="${cls}" name="${cls}" value="${d.key}" ${(picked ?? []).includes(d.key) ? 'checked' : ''}> ${d.label}</label>`).join('');
+  const windowChips = (cls, picked) => (meta?.windows ?? []).map((w) => `<label><input type="checkbox" class="${cls}" name="${cls}" value="${w.key}" ${(picked ?? []).includes(w.key) ? 'checked' : ''}> ${w.label} <small>${w.hint ?? ''}</small></label>`).join('');
+
+  // ---- 서버 ----
+  const demoState = { waits: [] };
+  async function api(method, body, query) {
+    if (DEMO) return demo(method, body, query);
+    const r = await fetch('/api/wait' + (query ? '?' + new URLSearchParams(query) : ''), { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const data = await r.json().catch(() => ({ error: '서버가 답하지 않아요. 잠시 뒤 다시 해 주세요' }));
+    if (!r.ok) throw new Error(data.error || '오류가 났어요');
+    return data;
+  }
+  function demo(method, body, query) {
+    const today = new Date().toISOString().slice(0, 10);
+    const ym = (n) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+    if (method === 'GET' && !query) return { services: [{ name: '커트', minutes: 60 }, { name: '일반 콜드펌', minutes: 120 }, { name: '열펌 매직', minutes: 180 }, { name: '매직세팅', minutes: 240 }, { name: '클리닉', minutes: 60 }, { name: '뿌리염색', minutes: 90 }, { name: '전체 염색', minutes: 120 }], months: [ym(0), ym(1), ym(2)], days: [{ key: 'weekday', label: '평일' }, { key: 'weekend', label: '주말' }], windows: [{ key: 'am', label: '오전', hint: '10시~1시' }, { key: 'pm', label: '오후', hint: '1시~5시' }, { key: 'eve', label: '5시 이후', hint: '5시~' }], today, maxPerPhone: 3, notifyLimit: 3, smsReady: false };
+    if (method === 'GET') { const mine = demoState.waits.filter((w) => w.code === query.c && w.status !== 'left'); if (!mine.length) throw new Error('그 번호로 걸린 대기를 찾지 못했어요'); return { waits: mine.map((w, i) => ({ ...w, position: i + 1 })), name: '예시' }; }
+    if (body.action === 'leave') { demoState.waits = demoState.waits.map((w) => (w.id === body.w ? { ...w, status: 'left' } : w)); return { ok: true }; }
+    if (body.action === 'update') { demoState.waits = demoState.waits.map((w) => (w.id === body.w ? { ...w, month: body.month, days: body.days, windows: body.windows } : w)); return { wait: { ...demoState.waits.find((w) => w.id === body.w), position: 1 } }; }
+    const w = { id: demoState.waits.length + 1, service: body.service, month: body.month, days: body.days, windows: body.windows, note: body.note, status: 'waiting', code: '123456', position: demoState.waits.length + 1 };
+    demoState.waits.push(w);
+    return { wait: w, code: w.code, url: location.href.split('?')[0] + '?demo=1&w=' + w.id + '&c=123456', smsSent: false };
+  }
+
+  // ---- 폼 ----
+  async function loadMeta() {
+    try { meta = await api('GET'); }
+    catch (e) { show($('#msg'), e.message, 'error'); $('#submit').disabled = true; return; }
+    $('#service').innerHTML = '<option value="">고르세요</option>' + meta.services.map((s) => `<option value="${esc(s.name)}">${esc(s.name)} <small>(${s.minutes >= 60 ? `${Math.floor(s.minutes / 60)}시간${s.minutes % 60 ? ` ${s.minutes % 60}분` : ''}` : `${s.minutes}분`})</small></option>`).join('');
+    drawChips();
+    document.querySelectorAll('.notify-n').forEach((el) => { el.textContent = meta.notifyLimit ?? 3; });
+  }
+  function drawChips() {
+    $('#months').innerHTML = monthChips('month', meta.months[1] ?? meta.months[0]);
+    $('#days').innerHTML = dayChips('days', []);
+    $('#windows').innerHTML = windowChips('windows', []);
+  }
+  const picked = (root, cls) => [...root.querySelectorAll(`input.${cls}:checked`)].map((i) => i.value);
+  function readForm() {
+    const f = $('#f');
+    return { service: f.service.value, month: f.querySelector('input[name=month]:checked')?.value ?? '', days: picked(f, 'days'), windows: picked(f, 'windows'), name: f.name.value, phone: f.phone.value, note: f.note.value, agree: f.agree.checked, website: f.website.value };
+  }
+  $('#f').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const body = readForm();
+    if (!body.month) { show($('#msg'), '희망 월을 골라 주세요', 'error'); return; }
+    if (!body.days.length) { show($('#msg'), '평일·주말 중 하나는 골라 주세요', 'error'); return; }
+    if (!body.windows.length) { show($('#msg'), '되는 시간대를 하나는 골라 주세요', 'error'); return; }
+    $('#submit').disabled = true; show($('#msg'), '접수하는 중…', '');
+    try {
+      const r = await api('POST', body);
+      $('#form-box').hidden = true; $('#result').hidden = false;
+      $('#result-text').innerHTML = `<b>${esc(r.wait.service)}</b>, ${esc(whenOf(r.wait))}<br>같은 조건 대기 <b class="big">${r.wait.position}번째</b>`;
+      $('#result-code').textContent = r.code;
+      $('#result-sms').textContent = r.smsSent ? '접수 문자도 보냈어요. 그 문자의 링크로 바꾸거나 뺄 수 있어요.' : '문자는 자리가 날 때 드려요.';
+      $('#mine-phone').value = body.phone; $('#mine-code').value = r.code;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err) { show($('#msg'), err.message, 'error'); }
+    finally { $('#submit').disabled = false; }
+  });
+  $('#again').addEventListener('click', () => { $('#form-box').hidden = false; $('#result').hidden = true; $('#f').reset(); if (meta) drawChips(); show($('#msg'), '', ''); });
+
+  // ---- 내 대기 ----
+  async function showMine(query) {
+    show($('#mine-msg'), '찾는 중…', '');
+    try {
+      const r = await api('GET', null, query);
+      show($('#mine-msg'), `${r.name}님의 대기 ${r.waits.length}건`, 'ok');
+      renderMine(r.waits, query.c);
+    } catch (err) { show($('#mine-msg'), err.message, 'error'); $('#mine-list').innerHTML = ''; }
+  }
+  const STATUS = { waiting: '기다리는 중', left: '뺐음', expired: '기간이 지났어요', booked: '예약됨' };
+  function renderMine(waits, code) {
+    $('#mine-list').innerHTML = waits.map((w) => editing && editing.id === w.id ? `
+      <div class="wait-row" data-id="${w.id}">
+        <div class="svc">${esc(w.service)} <small>바꾸기</small></div>
+        <label>희망 월</label>
+        <div class="chips">${monthChips(`e-month-${w.id}`, w.month)}</div>
+        <label>요일</label>
+        <div class="chips">${dayChips('e-day', w.days)}</div>
+        <label>시간대</label>
+        <div class="chips">${windowChips('e-win', w.windows)}</div>
+        <div class="acts"><button type="button" data-act="save" data-id="${w.id}">저장</button><button type="button" class="secondary" data-act="stop">그만두기</button></div>
+      </div>` : `
+      <div class="wait-row" data-id="${w.id}">
+        <div class="svc">${esc(w.service)} <span class="status">· ${STATUS[w.status] ?? w.status}</span></div>
+        <div>${esc(whenOf(w))}${w.note ? ` · ${esc(w.note)}` : ''}</div>
+        ${w.status === 'waiting' ? `<div>같은 조건 대기 <span class="pos">${w.position}번째</span>${w.notifiedCount ? ` · 자리 안내 문자 ${w.notifiedCount}번 받음` : ''}</div>` : ''}
+        ${w.status === 'waiting' || w.status === 'expired' ? `<div class="acts"><button type="button" class="secondary" data-act="edit" data-id="${w.id}">달·요일·시간대 바꾸기</button><button type="button" class="link" data-act="leave" data-id="${w.id}">대기 빼기</button></div>` : ''}
+      </div>`).join('');
+    $('#mine-list').dataset.code = code;
+  }
+  $('#mine-form').addEventListener('submit', (e) => { e.preventDefault(); editing = null; showMine({ p: $('#mine-phone').value, c: $('#mine-code').value.trim() }); });
+  $('#mine-list').addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (!b) return;
+    const id = Number(b.dataset.id), code = $('#mine-list').dataset.code;
+    const current = { w: params.get('w') && !$('#mine-phone').value ? { w: params.get('w'), c: code } : { p: $('#mine-phone').value, c: code } }.w;
+    try {
+      if (b.dataset.act === 'edit') { editing = { id }; await showMine(current); return; }
+      if (b.dataset.act === 'stop') { editing = null; await showMine(current); return; }
+      if (b.dataset.act === 'leave') { if (!confirm('이 대기를 뺄까요? 자리 안내 문자가 더 가지 않아요.')) return; await api('POST', { action: 'leave', w: id, c: code }); editing = null; show($('#mine-msg'), '뺐어요', 'ok'); await showMine(current).catch(() => { $('#mine-list').innerHTML = ''; show($('#mine-msg'), '뺐어요. 남은 대기가 없어요', 'ok'); }); return; }
+      if (b.dataset.act === 'save') {
+        const row = b.closest('.wait-row');
+        const month = row.querySelector(`input[name=e-month-${id}]:checked`)?.value ?? '';
+        const days = picked(row, 'e-day'), windows = picked(row, 'e-win');
+        if (!month) { show($('#mine-msg'), '희망 월을 골라 주세요', 'error'); return; }
+        if (!days.length) { show($('#mine-msg'), '평일·주말 중 하나는 골라 주세요', 'error'); return; }
+        if (!windows.length) { show($('#mine-msg'), '되는 시간대를 하나는 골라 주세요', 'error'); return; }
+        await api('POST', { action: 'update', w: id, c: code, month, days, windows });
+        editing = null; show($('#mine-msg'), '바꿨어요', 'ok'); await showMine(current);
+      }
+    } catch (err) { show($('#mine-msg'), err.message, 'error'); }
+  });
+
+  // 문자 링크(?w=번호&c=확인번호)로 들어오면 바로 내 대기를 보여 준다
+  loadMeta().then(() => {
+    if (params.get('w') && params.get('c')) { $('#mine-code').value = params.get('c'); showMine({ w: params.get('w'), c: params.get('c') }); $('#mine-box').scrollIntoView({ behavior: 'smooth' }); }
+  });
+})();
+</script>
+</body>
+</html>

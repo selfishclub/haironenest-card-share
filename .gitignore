@@ -1,0 +1,18 @@
+.DS_Store
+node_modules/
+# 실제 고객 기록·비밀 키는 절대 올리지 않는다
+상담카드-백업-*.json
+*.backup.json
+.env
+.env.*
+!.env.example
+# 사진 (V2.1에서 사진이 들어와도 저장소에는 안 올린다)
+*.jpg
+*.jpeg
+*.png
+# 앱 아이콘만 예외 (고객 사진이 아니다)
+!icons/*.png
+*.heic
+photos/
+# 남이 만든 참고 자료 (다른 참가자 과제, 강사 자료, DK님 코드) — 이 컴퓨터에만 둔다
+docs/참고_남의자료/
