@@ -1,0 +1,516 @@
+<title>헤어원네스트 자체 예약 설계</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap">
+<style>
+/* 레이아웃: 스폰지클럽 시스템 — Ink 표지 → Paper 본문 → Ink 결론, 왼쪽 정렬 한 단, 각진 면, 강조는 화면당 하나(옐로) */
+:root {
+  --surface: #ffffff;
+  --surface-card: #f4f4f4;
+  --text: #0a0a0a;
+  --signal-yellow: #e9ed12;
+  --on-yellow: #0a0a0a;
+  --on-yellow-muted: #5a5c10;
+  --bar-ink: #0a0a0a;
+  --on-bar-ink: #ffffff;
+  --on-bar-soft: #b8b8b0;
+  --rule: #e4e4e4;
+  --code-bg: #0a0a0a;
+  --font-sans: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", Arial, sans-serif;
+  --font-mono: Consolas, ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #0a0a0a; --surface-card: #1c1c1c; --text: #ffffff;
+    --bar-ink: #1c1c1c; --rule: #2e2e2e; --code-bg: #1c1c1c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #0a0a0a; --surface-card: #1c1c1c; --text: #ffffff;
+  --bar-ink: #1c1c1c; --rule: #2e2e2e; --code-bg: #1c1c1c; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--surface); color: var(--text);
+  font-family: var(--font-sans); font-size: 17px; line-height: 1.65;
+  word-break: keep-all; overflow-wrap: break-word;
+}
+.wrap {
+  max-width: 920px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.band-ink { background: var(--bar-ink); color: var(--on-bar-ink); }
+.band-ink .wrap { padding-block: 64px 56px; }
+section.block { padding-block: 56px 8px; }
+section.block + section.block { border-top: 1px solid var(--rule); margin-top: 48px; }
+
+.eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 0.18em; margin: 0 0 12px; }
+h1 { font-size: clamp(32px, 6vw, 52px); line-height: 1.18; font-weight: 800; margin: 0 0 20px; text-wrap: balance; }
+h1 u { text-decoration: underline; text-decoration-color: var(--signal-yellow); text-decoration-thickness: 0.14em; text-underline-offset: 0.12em; }
+h2 { font-size: clamp(26px, 4.2vw, 34px); line-height: 1.25; font-weight: 800; margin: 0 0 16px; text-wrap: balance; }
+h3 { font-size: 21px; line-height: 1.35; font-weight: 700; margin: 0 0 8px; }
+p { margin: 0 0 14px; max-width: 68ch; }
+.lead { font-size: 20px; line-height: 1.6; }
+mark { background: var(--signal-yellow); color: var(--on-yellow); padding: 0 0.15em; }
+code { font-family: var(--font-mono); font-size: 0.92em; }
+
+/* 표지 안 결정 세 줄 */
+.decide { display: grid; gap: 1px; margin-top: 32px; background: #2e2e2e; }
+.decide div { padding: 16px 20px; background: var(--bar-ink); display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 16px; }
+.decide b { font-size: 16px; }
+.decide span { color: var(--on-bar-ink); }
+
+/* 문제 다시 보기 */
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 20px 0; }
+.three > div { background: var(--surface-card); padding: 20px; min-width: 0; }
+.three > div.hot { background: var(--signal-yellow); color: var(--on-yellow); }
+.three .tag { font-size: 13px; font-weight: 700; letter-spacing: 0.1em; margin: 0 0 6px; }
+.three .hot .tag { color: var(--on-yellow-muted); }
+.three p { font-size: 16px; margin: 0; }
+.callout { background: var(--bar-ink); color: var(--on-bar-ink); padding: 20px 24px; margin: 24px 0 0; font-weight: 700; font-size: 18px; }
+.principles { display: grid; gap: 12px; margin: 20px 0 0; padding: 0; list-style: none; counter-reset: p; }
+.principles li { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 14px; align-items: start; }
+.principles li::before { counter-increment: p; content: counter(p); width: 40px; height: 40px; background: var(--bar-ink); color: var(--on-bar-ink); display: grid; place-items: center; font-weight: 800; }
+.principles b { display: block; font-size: 18px; }
+
+/* 그림 */
+figure { margin: 24px 0; }
+.fig-scroll { overflow-x: auto; }
+.fig-scroll svg { display: block; width: 100%; min-width: 760px; height: auto; color: var(--text); }
+figcaption { font-size: 15px; margin-top: 10px; max-width: 72ch; }
+.changes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.changes > div { background: var(--surface-card); padding: 18px 20px; min-width: 0; }
+.changes b { display: block; margin-bottom: 4px; }
+.changes p { margin: 0; font-size: 16px; }
+
+/* 스펙 */
+.spec { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 24px; padding-block: 28px; border-top: 1px solid var(--rule); }
+.spec:first-of-type { border-top: 0; }
+.spec > h3 { font-size: 19px; }
+.spec .body { min-width: 0; }
+.why { background: var(--surface-card); padding: 14px 18px; margin: 12px 0 0; font-size: 16px; }
+.why b { display: block; font-size: 13px; letter-spacing: 0.12em; margin-bottom: 4px; }
+.spec ul { margin: 0 0 12px; padding-left: 1.1em; }
+.spec li { margin-bottom: 6px; }
+.steps { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 12px; }
+.steps span { background: var(--surface-card); padding: 8px 12px; font-size: 15px; font-weight: 700; }
+.steps i { font-style: normal; font-weight: 700; }
+
+pre { background: var(--code-bg); color: #ffffff; padding: 18px 20px; overflow-x: auto; font-family: var(--font-mono); font-size: 14px; line-height: 1.6; margin: 12px 0; }
+pre .c { color: #b8b8b0; }
+
+.tbl { overflow-x: auto; margin: 16px 0; }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 15.5px; }
+th { background: var(--bar-ink); color: var(--on-bar-ink); text-align: left; padding: 10px 12px; font-weight: 700; }
+td { padding: 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+td:first-child { font-weight: 700; white-space: nowrap; }
+td ul { margin: 0; padding-left: 1.05em; }
+td li { margin-bottom: 4px; }
+tr.now td { background: var(--surface-card); }
+
+/* 개발 순서 */
+.loop { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 20px 0; }
+.loop div { background: var(--surface-card); padding: 14px; min-width: 0; font-size: 15px; }
+.loop b { display: block; font-size: 16px; margin-bottom: 4px; }
+
+/* 리스크 */
+.risk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 24px; padding-block: 16px; border-top: 1px solid var(--rule); }
+.risk:first-of-type { border-top: 0; }
+.risk h3 { font-size: 18px; margin: 0; grid-column: 1 / -1; }
+.risk p { margin: 6px 0 0; font-size: 16px; }
+.risk p b { margin-right: 6px; }
+
+/* 결론 */
+.asks { display: grid; gap: 1px; background: #2e2e2e; margin-top: 20px; }
+.asks div { background: var(--bar-ink); padding: 18px 20px; display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; }
+.asks em { font-style: normal; font-weight: 800; font-size: 20px; }
+.asks p { margin: 0; color: var(--on-bar-ink); }
+.asks small { display: block; color: var(--on-bar-soft); font-size: 15px; margin-top: 2px; }
+.foot { font-size: 14px; color: var(--on-bar-soft); margin-top: 40px; }
+
+@media (max-width: 720px) {
+  body { font-size: 16px; }
+  .three, .changes { grid-template-columns: minmax(0, 1fr); }
+  .spec { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .loop { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .risk { grid-template-columns: minmax(0, 1fr); }
+  .decide div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+</style>
+
+<header class="band-ink">
+  <div class="wrap">
+    <p class="eyebrow">헤어원네스트 · 3차 논의까지 반영 · 2026.10.29</p>
+    <h1>손님이 <u>시술을 고르면 들어갈 수 있는 시간만</u> 보이는 예약</h1>
+    <p class="lead">2차 논의에서 자체 예약을 만들기로 정했고, 3차 논의에서 네이버를 어떻게 남길지가 바뀌었습니다. 이 페이지는 무엇을, 왜, 어떤 순서로 만들지 정리한 설계안입니다. 1인이 바이브 코딩으로 만들고 운영한다는 조건에 맞춰 짰습니다.</p>
+    <div class="decide">
+      <div><b>정해진 것</b><span>자체 예약 시스템. 11월 준비, 12월부터 단계적 시험</span></div>
+      <div><b>3차에서 바뀐 것</b><span>네이버 예약은 끄지 않습니다. 노출을 지키려고 예약 상품은 켜 둔 채 마감하고, 안내 글과 링크로 자체 예약에 보냅니다</span></div>
+      <div><b>지킬 것</b><span>동시 예약 0. 손님 한 명에게 집중하는 상담 방식이 가게의 핵심 가치</span></div>
+      <div><b>추천 순서</b><span>V0 기초 → V1 닫힌 시험 → V2 한 요일 실전 + 노출 측정 → V3 대기 자동 → V4 전체 전환 → V5 손님 인증</span></div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="block">
+    <p class="eyebrow">문제 다시 보기</p>
+    <h2>오버부킹은 지킬 조건이고, 풀어야 할 문제는 "찾기"와 "채우기"입니다</h2>
+    <p>2차 논의에서 문제가 더 정확해졌습니다. 오버부킹은 핸드SOS가 이미 막고 있습니다. 손님과 원장님이 실제로 손해 보는 곳은 다른 데 있습니다.</p>
+    <div class="three">
+      <div class="hot">
+        <p class="tag">손님 · 찾기</p>
+        <h3>빈 시간을 못 찾고 포기</h3>
+        <p>네이버는 날짜와 시간을 먼저 고르고 시술을 나중에 고릅니다. 시술이 안 맞으면 처음 화면으로 돌아갑니다. 예약이 일주일 넘게 밀려 있으면 날짜마다 눌러 보다 포기합니다.</p>
+      </div>
+      <div>
+        <p class="tag">원장 · 채우기</p>
+        <h3>대기 수요가 있어도 빈자리</h3>
+        <p>취소나 변경으로 생긴 자리를 알리는 길이 없어서, 기다리는 손님이 있는데도 그 시간이 비어 있습니다.</p>
+      </div>
+      <div>
+        <p class="tag">가게 · 지킬 것</p>
+        <h3>동시 예약 0</h3>
+        <p>손님의 상태를 먼저 읽고 제안하는 상담 방식이라 시선이 나뉘면 품질이 떨어집니다. 그래서 겹침은 어떤 경우에도 안 됩니다.</p>
+      </div>
+    </div>
+    <p>그래서 설계 원칙은 세 가지입니다.</p>
+    <ol class="principles">
+      <li><div><b>시술 먼저, 그다음 들어갈 수 있는 시간만</b>손님이 고른 시술의 길이로 계산해서 실제로 들어가는 시간만 보여 줍니다. 안 되는 시간은 아예 안 보입니다. 첫 화면에는 가까운 빈자리를 늘 띄워 둡니다(3차 논의).</div></li>
+      <li><div><b>겹침은 데이터베이스가 막는다</b>화면 코드가 아니라 저장소 규칙이 겹치는 예약을 거절합니다. 1인 개발에서 동시에 두 명이 누르는 경우까지 코드로 완벽히 막기는 어렵습니다.</div></li>
+      <li><div><b>취소가 시스템 안에서 일어나게</b>손님이 링크로 직접 취소하면 그 순간 시스템이 압니다. 원장님이 취소를 옮겨 적을 필요가 없어지고, 대기 자동 제안이 여기서 시작됩니다.</div></li>
+    </ol>
+  </section>
+
+  <section class="block">
+    <p class="eyebrow">전체 구조도</p>
+    <h2>달력은 하나, 원장님 카드와 손님 페이지가 같은 표를 봅니다</h2>
+    <figure>
+      <div class="fig-scroll">
+        <svg viewBox="0 0 900 470" role="img" aria-label="손님 페이지와 원장 카드가 서버 함수를 거쳐 Supabase의 card_bookings 표 하나를 원본으로 쓰고, 겹침은 그 표의 규칙이 거절한다. 네이버는 예약 링크만 보내고 핸드SOS는 정액권만 맡는다." font-family="Pretendard Variable, Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13">
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+          </defs>
+
+          <!-- 왼쪽: 손님 쪽 -->
+          <text x="20" y="20" font-weight="700" fill="currentColor">손님 쪽</text>
+          <rect x="20" y="30" width="180" height="50" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="110" y="52" text-anchor="middle" font-weight="700" fill="currentColor">네이버 · 인스타</text>
+          <text x="110" y="70" text-anchor="middle" fill="currentColor">검색·소식 · 예약은 마감</text>
+
+          <rect x="20" y="120" width="180" height="60" fill="none" stroke="currentColor" stroke-width="2"/>
+          <text x="110" y="145" text-anchor="middle" font-weight="700" fill="currentColor">예약 페이지</text>
+          <text x="110" y="164" text-anchor="middle" fill="currentColor">book.html</text>
+
+          <rect x="20" y="210" width="180" height="60" fill="none" stroke="currentColor" stroke-width="2"/>
+          <text x="110" y="235" text-anchor="middle" font-weight="700" fill="currentColor">내 예약 링크</text>
+          <text x="110" y="254" text-anchor="middle" fill="currentColor">my.html · 문자로 받음</text>
+
+          <rect x="20" y="290" width="180" height="50" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="110" y="312" text-anchor="middle" font-weight="700" fill="currentColor">5분 타이머</text>
+          <text x="110" y="330" text-anchor="middle" fill="currentColor">GitHub Actions</text>
+
+          <rect x="20" y="400" width="180" height="50" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text x="110" y="422" text-anchor="middle" font-weight="700" fill="currentColor">핸드SOS</text>
+          <text x="110" y="440" text-anchor="middle" fill="currentColor">정액권만 · 연결 안 함</text>
+
+          <line x1="110" y1="80" x2="110" y2="118" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+          <text x="118" y="104" fill="currentColor" font-size="12">예약 링크</text>
+
+          <!-- 가운데: 서버 함수 -->
+          <rect x="300" y="30" width="260" height="315" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="430" y="54" text-anchor="middle" font-weight="700" fill="currentColor">Vercel 서버 함수</text>
+          <rect x="320" y="70" width="220" height="48" fill="none" stroke="currentColor"/>
+          <text x="334" y="99" font-weight="700" fill="currentColor">api/slots</text><text x="526" y="99" text-anchor="end" fill="currentColor">들어갈 시간 계산</text>
+          <rect x="320" y="140" width="220" height="48" fill="none" stroke="currentColor"/>
+          <text x="334" y="169" font-weight="700" fill="currentColor">api/book</text><text x="526" y="169" text-anchor="end" fill="currentColor">예약·잡아 두기</text>
+          <rect x="320" y="210" width="220" height="48" fill="none" stroke="currentColor"/>
+          <text x="334" y="239" font-weight="700" fill="currentColor">api/my</text><text x="526" y="239" text-anchor="end" fill="currentColor">취소·변경·예/아니요</text>
+          <rect x="320" y="280" width="220" height="48" fill="none" stroke="currentColor"/>
+          <text x="334" y="309" font-weight="700" fill="currentColor">api/tick</text><text x="526" y="309" text-anchor="end" fill="currentColor">시간 지난 자리 넘기기</text>
+
+          <line x1="200" y1="150" x2="318" y2="150" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+          <text x="206" y="142" fill="currentColor" font-size="12">시간 보기·예약</text>
+          <line x1="200" y1="240" x2="318" y2="240" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+          <text x="206" y="232" fill="currentColor" font-size="12">취소·예/아니요</text>
+          <line x1="200" y1="315" x2="318" y2="315" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+          <text x="206" y="307" fill="currentColor" font-size="12">5분마다 부름</text>
+
+          <!-- 오른쪽: Supabase -->
+          <rect x="640" y="30" width="240" height="315" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="760" y="54" text-anchor="middle" font-weight="700" fill="currentColor">Supabase · 원본</text>
+          <rect x="656" y="70" width="208" height="92" fill="#e9ed12" stroke="#0a0a0a" stroke-width="2"/>
+          <text x="760" y="98" text-anchor="middle" font-weight="800" fill="#0a0a0a">card_bookings</text>
+          <text x="760" y="120" text-anchor="middle" fill="#0a0a0a">예약 · 잡아 둠 · 막아 둠</text>
+          <text x="760" y="142" text-anchor="middle" font-weight="700" fill="#0a0a0a">겹치면 저장 거절</text>
+          <rect x="656" y="182" width="208" height="48" fill="none" stroke="currentColor"/>
+          <text x="760" y="211" text-anchor="middle" fill="currentColor">card_waitlist · 대기 줄</text>
+          <rect x="656" y="250" width="208" height="48" fill="none" stroke="currentColor"/>
+          <text x="760" y="279" text-anchor="middle" fill="currentColor">고객 · 상담 기록 (지금 그대로)</text>
+
+          <line x1="560" y1="110" x2="654" y2="110" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+          <text x="566" y="102" fill="currentColor" font-size="12">넣기·잡아 두기</text>
+          <line x1="560" y1="206" x2="654" y2="206" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+          <text x="566" y="198" fill="currentColor" font-size="12">대기 순서 읽기</text>
+
+          <!-- 아래: 발송킹, 원장 카드 -->
+          <rect x="300" y="400" width="260" height="50" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="430" y="422" text-anchor="middle" font-weight="700" fill="currentColor">발송킹</text>
+          <text x="430" y="440" text-anchor="middle" fill="currentColor">확정 문자 · 대기 제안 · 전날 알림톡</text>
+          <line x1="430" y1="345" x2="430" y2="398" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah)"/>
+          <text x="438" y="377" fill="currentColor" font-size="12">문자 보냄</text>
+
+          <rect x="640" y="400" width="240" height="50" fill="none" stroke="currentColor" stroke-width="2"/>
+          <text x="760" y="422" text-anchor="middle" font-weight="700" fill="currentColor">원장 고객 카드</text>
+          <text x="760" y="440" text-anchor="middle" fill="currentColor">타임테이블 · 막아 두기</text>
+          <line x1="760" y1="398" x2="760" y2="347" stroke="currentColor" stroke-width="1.5" marker-start="url(#ah)" marker-end="url(#ah)"/>
+          <text x="752" y="377" text-anchor="end" fill="currentColor" font-size="12">로그인해서 보기·막기</text>
+        </svg>
+      </div>
+      <figcaption>모든 예약·잡아 둔 자리·원장님이 막은 시간은 노란 표 하나에 들어가고, 겹치는 줄은 그 표가 저장을 거절합니다. 손님은 서버 함수를 거쳐서만 표에 닿고, 원장님 카드는 지금처럼 로그인해서 같은 표를 봅니다. 네이버 예약은 켜 둔 채 마감해 노출만 지키고, 네이버 소식·예약 안내·인스타 프로필의 링크가 손님을 예약 페이지로 보냅니다. 핸드SOS는 정액권만 맡습니다.</figcaption>
+    </figure>
+    <div class="changes">
+      <div><b>사라지는 것</b><p>원장님이 네이버·핸드SOS 예약을 카드 타임테이블에 손으로 옮겨 적는 일. 손님 예약이 바로 타임테이블에 뜨고, 전날 알림톡도 이 표에서 읽습니다.</p></div>
+      <div><b>그대로 쓰는 것</b><p>시술 시간표, 타임테이블 그리기, wait.html의 확인번호·하루 5번 제한·봇 거르기, 발송킹 연결, 상담 기록. 새로 배울 기술이 없습니다.</p></div>
+    </div>
+  </section>
+
+  <section class="block">
+    <p class="eyebrow">구체안 · 추천 스펙</p>
+    <h2>항목마다 무엇을 고르고 왜 골랐는지</h2>
+
+    <div class="spec">
+      <h3>기술 묶음</h3>
+      <div class="body">
+        <p>지금 쓰는 것 그대로입니다. 정적 HTML + Vercel 서버 함수 + Supabase + 발송킹. 설치할 패키지도 새로 늘리지 않습니다.</p>
+        <div class="why"><b>왜</b>을한 님이 이미 한 달 동안 82건을 이 묶음으로 만들었고 시험 281개가 돌아갑니다. Next.js 같은 새 틀로 옮기면 예약 기능보다 틀을 배우는 데 시간이 더 듭니다. 1인 개발에서 가장 큰 위험은 모르는 것을 동시에 두 개 배우는 것입니다.</div>
+      </div>
+    </div>
+
+    <div class="spec">
+      <h3>원본 표 하나</h3>
+      <div class="body">
+        <p>손님 예약, 대기 손님에게 잡아 둔 자리, 원장님이 막은 시간(휴무·개인 일정)을 전부 <code>card_bookings</code> 한 표에 넣습니다.</p>
+<pre><code>create extension if not exists btree_gist;
+
+create table card_bookings (
+  id          bigint generated always as identity primary key,
+  kind        text not null default 'booking',   <span class="c">-- booking 손님 예약 / block 원장이 막은 시간</span>
+  status      text not null default 'confirmed', <span class="c">-- held 잡아 둠 / confirmed 확정 / canceled 취소</span>
+  slot        tstzrange not null,                <span class="c">-- 시작~끝 (시술 분 + 정리 시간)</span>
+  service     text, minutes integer,
+  name        text, phone text, customer_id bigint,
+  token       text unique,                       <span class="c">-- 손님 개인 링크 열쇠, 무작위 32자</span>
+  hold_until  timestamptz, wait_id bigint,       <span class="c">-- 잡아 둔 자리가 풀리는 시각, 어느 대기 손님인지</span>
+  source      text not null default 'web',       <span class="c">-- web 손님 / card 원장 / naver 옮겨 적음</span>
+  created_at  timestamptz not null default now(),
+  <span class="c">-- 잡아 둠·확정끼리는 1분이라도 겹치면 저장 자체가 거절된다</span>
+  exclude using gist (slot with &amp;&amp;) where (status in ('held', 'confirmed'))
+);
+alter table card_bookings enable row level security;  <span class="c">-- 손님은 직접 못 읽음, 서버 함수만</span></code></pre>
+        <div class="why"><b>왜</b>막아 둔 시간까지 같은 표에 넣어야 규칙 한 줄이 모든 겹침을 막습니다. 표가 나뉘면 "예약과 휴무가 겹치는지"를 코드로 따로 검사해야 하고, 그 검사가 빠지는 날 오버부킹이 납니다. <code>source</code>에 naver를 두는 이유는 전환 기간에 네이버 예약도 이 표에 옮겨 적어 같은 규칙으로 검사받게 하려는 것입니다.</div>
+      </div>
+    </div>
+
+    <div class="spec">
+      <h3>들어갈 시간 계산</h3>
+      <div class="body">
+        <p><code>store.js</code>에 순수 함수 하나를 더합니다. 화면도 서버도 모르는 함수라 <code>node --test</code>로 바로 시험할 수 있습니다.</p>
+<pre><code><span class="c">// 시작 시각은 30분 간격으로 내되, 길이는 시술 시간 그대로 + 정리 시간</span>
+availableSlots({ bookings, hours, minutes: 120, buffer: 10, from: '2026-12-01', days: 14 })
+<span class="c">// → [{ date: '2026-12-01', times: ['10:00', '14:30'] }, { date: '2026-12-02', times: [] }, ...]</span></code></pre>
+        <ul>
+          <li>어떤 시각 t가 되려면 t부터 t + 시술 분 + 정리 시간까지가 영업시간 안이고, 잡아 둠·확정·막아 둠 어느 것과도 안 겹쳐야 합니다.</li>
+          <li>영업시간·휴무일은 지금 카드에 없습니다(코드에는 10시~19시 고정). V0에서 설정으로 만듭니다.</li>
+          <li>당일 예약은 지금부터 2시간 뒤부터만 냅니다. 원장님이 준비할 시간입니다.</li>
+        </ul>
+        <div class="why"><b>왜</b>"30분 남았는데 그 안에 들어가는 시술이 없어 예약이 막히는" 네이버의 문제를 손님이 겪지 않게 하려는 것입니다. 안 되는 시간은 처음부터 안 보이니 오류 화면이 생길 일이 없습니다. 계산을 순수 함수로 두면 "4시간 매직세팅 뒤에 커트가 들어가는가" 같은 경우를 시험으로 박아 둘 수 있습니다.</div>
+      </div>
+    </div>
+
+    <div class="spec">
+      <h3>손님 예약 화면</h3>
+      <div class="body">
+        <div class="steps"><span>첫 화면 가까운 빈자리</span><i>→</i><span>1 시술 고르기</span><i>→</i><span>2 조건 거르기 + 되는 시간</span><i>→</i><span>3 이름·번호·동의</span><i>→</i><span>완료 + 확정 문자</span></div>
+        <ul>
+          <li>첫 화면에 "가까운 빈자리"를 늘 띄웁니다. 커트·펌·염색처럼 분류마다 가장 가까운 시간 세 개씩. 손님 이름은 없고 시간만 보이니 인스타 스토리에 그대로 캡처해 올려도 됩니다(3차 논의: 남은 일정을 메인에 상시 노출).</li>
+          <li>2단계는 날짜별로 묶어 한 화면에 보여 줍니다. 되는 시간이 없는 날은 "마감"으로 접습니다. 날짜마다 눌러 볼 필요가 없습니다.</li>
+          <li>거르기 조건은 희망 달·평일/주말·오전/오후/5시 이후. 지금 wait.html의 조건과 똑같이 맞춥니다(3차 논의: 필터로 손님 조건을 받고 대기까지).</li>
+          <li>거른 결과가 비면 "이 조건으로 대기 걸기" 단추 하나. 손님이 고른 시술과 조건이 대기 줄에 그대로 들어가서 다시 적을 필요가 없습니다.</li>
+          <li>완료 화면에 "캘린더에 넣기" 버튼(.ics 파일). 네이버가 주던 캘린더 연동을 싸게 메웁니다.</li>
+          <li>결제는 받지 않습니다. 지금처럼 매장에서, 정액권은 핸드SOS.</li>
+        </ul>
+        <div class="why"><b>왜</b>2차 논의에서 나온 손님 불편(날짜 먼저 고르기, 안 맞으면 처음으로, 날짜마다 조회)을 순서 하나로 뒤집습니다. 예약과 대기를 한 화면의 같은 조건으로 묶는 이유는 손님 입장에서 "원하는 시간을 찾다가 없으면 기다린다"가 한 흐름이기 때문입니다. 페이지가 둘이면 손님은 같은 조건을 두 번 적고, 원장님은 두 화면을 고쳐야 합니다. 결제를 빼는 이유는 온라인 결제를 붙이려면 결제 회사 계약·환불 규칙·정산까지 생겨서 1인 개발 범위를 넘기 때문입니다. 노쇼는 이미 있는 전날 알림톡으로 먼저 막고, 숫자를 본 뒤에 예약금을 다시 생각합니다.</div>
+      </div>
+    </div>
+
+    <div class="spec">
+      <h3>손님 확인 방식</h3>
+      <div class="body">
+        <p>처음에는 로그인이 없습니다. 확정 문자에 손님마다 다른 링크(<code>my.html?t=무작위 32자</code>)가 들어가고, 그 링크로 예약 보기·취소·변경을 합니다. 인증번호 로그인은 V5에서 "내 시술 기록" 페이지와 함께 붙입니다.</p>
+        <div class="why"><b>왜</b>2차 논의에서 나온 "전화번호 뒷자리로 로그인"은 그것만으로는 위험합니다. 뒷자리 4자리는 1만 가지라 이름과 함께 몇 번 시도하면 남의 예약을 열 수 있습니다. 예약 하나를 보는 데는 문자 속 긴 링크가 더 안전하고 만들기도 쉽습니다. 상담 기록처럼 민감한 것을 보여 줄 때는 문자 인증번호(6자리, 5분 유효, 하루 시도 제한)가 꼭 필요하니, 그 기능이 생기는 V5까지 미룹니다.</div>
+      </div>
+    </div>
+
+    <div class="spec">
+      <h3>대기 자동 제안</h3>
+      <div class="body">
+        <figure>
+          <div class="fig-scroll">
+            <svg viewBox="0 0 880 220" role="img" aria-label="손님이 링크로 취소하면 빈 시간을 계산해 대기 손님 한 명에게 자리를 잡아 둔다. 예를 누르면 확정, 아니요나 시간 지남이면 다음 대기 손님에게 넘기고, 남은 대기가 없으면 자리를 연다." font-family="Pretendard Variable, Pretendard, Apple SD Gothic Neo, Noto Sans KR, sans-serif" font-size="13">
+              <defs>
+                <marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker>
+              </defs>
+              <rect x="10" y="50" width="150" height="56" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="85" y="74" text-anchor="middle" font-weight="700" fill="currentColor">손님이 링크로 취소</text>
+              <text x="85" y="94" text-anchor="middle" fill="currentColor">status → canceled</text>
+              <rect x="200" y="50" width="150" height="56" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="275" y="74" text-anchor="middle" font-weight="700" fill="currentColor">빈 시간 계산</text>
+              <text x="275" y="94" text-anchor="middle" fill="currentColor">앞뒤 빈칸까지 합침</text>
+              <rect x="390" y="50" width="210" height="56" fill="#e9ed12" stroke="#0a0a0a" stroke-width="2"/>
+              <text x="495" y="74" text-anchor="middle" font-weight="800" fill="#0a0a0a">다음 대기 손님에게 잡아 둠</text>
+              <text x="495" y="94" text-anchor="middle" fill="#0a0a0a">status = held · 문자 예/아니요</text>
+              <rect x="660" y="10" width="210" height="50" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="765" y="32" text-anchor="middle" font-weight="700" fill="currentColor">확정</text>
+              <text x="765" y="50" text-anchor="middle" fill="currentColor">confirmed · 알림톡 대상</text>
+              <rect x="660" y="100" width="210" height="50" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <text x="765" y="122" text-anchor="middle" font-weight="700" fill="currentColor">자리 엶</text>
+              <text x="765" y="140" text-anchor="middle" fill="currentColor">예약 페이지에 다시 보임</text>
+
+              <line x1="160" y1="78" x2="198" y2="78" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah2)"/>
+              <line x1="350" y1="78" x2="388" y2="78" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah2)"/>
+              <polyline points="600,66 630,66 630,35 658,35" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah2)"/>
+              <text x="636" y="28" fill="currentColor" font-size="12">예</text>
+              <polyline points="600,92 630,92 630,125 658,125" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah2)"/>
+              <text x="636" y="168" fill="currentColor" font-size="12">남은 대기 없음</text>
+              <line x1="630" y1="125" x2="630" y2="160" stroke="none"/>
+              <polyline points="560,106 560,180 430,180 430,108" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ah2)"/>
+              <text x="495" y="202" text-anchor="middle" fill="currentColor" font-size="12">아니요 · 잡아 둔 시간 지남 → 다음 손님 (api/tick)</text>
+            </svg>
+          </div>
+          <figcaption>잡아 둔 동안은 표에 held 줄이 있어서 예약 페이지에 그 시간이 안 보입니다. 그래서 대기 손님이 "예"를 누르는 사이에 다른 손님이 가져갈 수 없습니다. 1차 안에서 막혔던 대기 자리 오버부킹이 여기서 풀립니다.</figcaption>
+        </figure>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>취소된 자리까지 남은 시간</th><th>한 손님에게 잡아 두는 시간</th><th>이유</th></tr></thead>
+            <tbody>
+              <tr><td>3일 넘게</td><td>2시간</td><td>여유가 있어 손님이 일정을 확인할 시간을 줌</td></tr>
+              <tr><td>1~3일</td><td>1시간</td><td>세 명을 돌아도 반나절 안에 끝남</td></tr>
+              <tr><td>24시간 안</td><td>20분</td><td>빨리 돌아야 자리가 산다</td></tr>
+              <tr><td>3시간 안</td><td>제안 안 함, 바로 엶</td><td>잡아 두다 빈자리로 끝날 위험이 더 큼</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <ul>
+          <li>밤 10시~아침 9시에는 제안 문자를 보내지 않고 잡아 둔 시간도 멈춥니다.</li>
+          <li>표의 시간은 처음 값입니다. 카드에 쌓인 취소 기록(며칠 전 취소, 채워졌나)을 보고 고칩니다.</li>
+        </ul>
+        <div class="why"><b>왜</b>지금 대기는 세 명에게 한꺼번에 보내고 선착순이라 두 명은 헛걸음을 합니다. 한 명씩 잡아 주면 "예/아니요만 누르는" 을한 님이 원한 모습이 됩니다. 시간이 지나면 다음 사람으로 넘기는 일은 누가 깨워 줘야 하는데, 지금 쓰는 Vercel 무료 요금제의 크론은 하루 한 번만 돕니다(전날 알림톡이 그렇게 돌고 있음). 그래서 GitHub Actions의 예약 실행(무료, 5분 간격, 몇 분씩 늦을 수 있음)으로 <code>api/tick</code>을 부릅니다. 늦어도 문제없게 가장 짧은 잡아 두기를 20분으로 잡았습니다.</div>
+      </div>
+    </div>
+
+    <div class="spec">
+      <h3>네이버 남기는 방식 (3차 논의)</h3>
+      <div class="body">
+        <p>3차 논의의 전제는 "네이버는 예약·페이를 쓰는 업체를 먼저 보여 준다"입니다. 그래서 예약을 그냥 끄면 노출을 잃을 수 있습니다. 논의에 나온 방식을 넷으로 나눠 비교했습니다.</p>
+        <div class="tbl">
+          <table>
+            <thead><tr><th>방식</th><th>네이버 노출</th><th>겹침 위험</th><th>정책 위험</th><th>원장님 일</th></tr></thead>
+            <tbody>
+              <tr><td>A 네이버 예약 끄기</td><td>줄 수 있음</td><td>없음</td><td>없음</td><td>없음</td></tr>
+              <tr class="now"><td>B 켜 두고 마감 + 안내·링크 (추천)</td><td>예약 상품은 남음. 마감이 노출에 주는 영향은 V2에서 잼</td><td>없음. 네이버로는 아무도 못 들어옴</td><td>낮음. 플레이스·예약에 외부 링크를 건 사례가 제재 없이 돌고 있음</td><td>처음 한 번 마감 설정, 안내 글 쓰기</td></tr>
+              <tr><td>C 빈 칸을 가짜 예약으로 채우기</td><td>오를 수 있음</td><td>없음</td><td>높음. 없는 예약을 만드는 것이라 허위 예약으로 볼 수 있고, 제재받으면 평점 5점인 플레이스까지 잃음</td><td>매번 채우고 지우기. 핸드SOS·카드 숫자도 오염</td></tr>
+              <tr><td>D 신규 첫 방문만 네이버에 열기</td><td>유지</td><td>있음. 네이버 예약을 표에 옮겨 적어야 함</td><td>없음</td><td>옮겨 적기가 계속 남음</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>B를 추천합니다. 네이버 예약 상품은 켜 둔 채 열린 칸 없이 마감하고, 예약 안내·플레이스 소식·인스타 프로필에 예약 페이지 링크를 겁니다. D는 V2에서 노출이 눈에 띄게 줄었을 때 꺼낼 대안으로 둡니다.</p>
+        <div class="say"><b>네이버 예약 안내·소식 글 초안</b>헤어원네스트는 시술마다 걸리는 시간이 달라서, 시술을 먼저 고르면 들어갈 수 있는 시간만 보여 드리는 예약 페이지로 예약을 받고 있어요. 아래 링크에서 원하시는 시술을 고르시면 가장 가까운 빈자리가 바로 보여요. 원하는 시간이 없으면 대기를 걸어 두세요. 자리가 나면 문자로 먼저 알려 드려요.</div>
+        <div class="why"><b>왜</b>손님은 미용실을 네이버 검색으로 찾으니 찾는 곳은 그대로 두고 예약하는 곳만 바꿉니다. C를 빼는 이유는 노출을 조금 얻는 대신 가게의 가장 큰 자산인 플레이스와 리뷰를 걸어야 하기 때문입니다(정책 원문은 확인 필요). 3차 논의에서 나온 "안내 글에 연락처를 걸고 손님이 직접 연락"은 원장님이 다시 중간에 끼는 길이라, 연락처 대신 예약 페이지 링크를 겁니다. 전환 기간에 같은 날을 네이버와 자체 예약이 함께 받으면 서로의 예약을 못 봐서 겹침이 다시 생깁니다. 그래서 V2~V3은 요일로 나눕니다.</div>
+      </div>
+    </div>
+
+    <div class="spec">
+      <h3>개인정보</h3>
+      <div class="body">
+        <ul>
+          <li>받는 것은 이름·번호·시술뿐. 동의 체크는 wait.html처럼 필수.</li>
+          <li>개인정보처리방침 한 장을 예약 페이지 아래에 겁니다(수집 항목, 쓰는 곳, 보관 기간, 문자 발송 업체).</li>
+          <li>손님 페이지는 다른 손님의 이름·시간을 절대 돌려주지 않습니다. 빈 시간만 돌려줍니다.</li>
+          <li>V5의 "내 시술 기록"에도 원장님의 진단 메모(얼굴형·모질 등)를 그대로 보이지 않습니다. 보여 줄 칸을 따로 정합니다.</li>
+        </ul>
+        <div class="why"><b>왜</b>2차 논의에서 개인정보 걱정이 나왔습니다. 처음부터 적게 받으면 지킬 것도 적습니다. 상담 기록은 원장님이 손님 앞에서 하는 말과 다르게 적힌 메모라, 그대로 보이면 관계를 해칠 수 있습니다.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <p class="eyebrow">버전 분할</p>
+    <h2>버전마다 원장님이 써 볼 수 있는 것 하나로 끝냅니다</h2>
+    <p>나누는 기준은 셋입니다. 버전이 끝나면 원장님이 직접 써서 확인할 수 있어야 하고, 손님이 보는 순간은 기초가 검증된 뒤여야 하고, 잘못되면 그 버전 전으로 되돌릴 수 있어야 합니다.</p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>버전</th><th>언제</th><th>만드는 것</th><th>누가 쓰나</th><th>다음으로 넘어가는 조건</th></tr></thead>
+        <tbody>
+          <tr class="now"><td>V0 기초 공사</td><td>11월 1~2주</td><td><ul><li>card_bookings 표 + 겹침 거절 규칙</li><li>영업시간·휴무일·막아 두기 설정</li><li>타임테이블에 올리면 이 표에 저장</li><li>availableSlots 함수 + 시험</li></ul></td><td>원장님만</td><td>1주 동안 타임테이블을 이걸로 썼고, 겹치게 올리면 거절되는 것을 눈으로 확인</td></tr>
+          <tr><td>V1 손님 예약 · 닫힌 시험</td><td>11월 3~4주</td><td><ul><li>book.html, api/slots, api/book</li><li>첫 화면 가까운 빈자리, 조건 거르기</li><li>결과가 비면 그 조건으로 대기 걸기(지금 대기 줄에 넣음)</li><li>확정 문자 + 개인 링크(보기만)</li><li>전날 알림톡이 이 표에서 읽음</li></ul></td><td>지인·단골 5명</td><td>시험 예약 20건, 겹침 0, 손님이 막힌 곳 없음</td></tr>
+          <tr><td>V2 한 요일 실전 + 노출 측정</td><td>12월 1~2주</td><td><ul><li>네이버에서 요일 하나를 마감, 예약 안내·소식에 링크</li><li>그 요일은 자체 예약만</li><li>링크로 손님이 직접 취소·변경</li><li>다른 요일 네이버 예약은 source=naver로 옮겨 적음</li></ul></td><td>실제 손님, 한 요일</td><td>2주 동안 겹침 0, 원장님이 손댄 횟수 기록, 플레이스 조회·예약 클릭이 마감 전과 비교해 크게 줄지 않음</td></tr>
+          <tr><td>V3 대기 자동 제안</td><td>12월 3~4주</td><td><ul><li>취소 → 한 명씩 잡아 둠 → 예/아니요</li><li>api/tick + GitHub Actions 5분 타이머</li><li>wait.html을 새 대기와 잇기</li></ul></td><td>한 요일의 대기 손님</td><td>취소 자리 중 대기로 채워진 비율이 나옴, 잘못 잡힌 자리 0</td></tr>
+          <tr><td>V4 전체 전환</td><td>1월</td><td><ul><li>네이버 예약은 켜 둔 채 모든 요일 마감(B안)</li><li>노출이 줄었으면 신규 첫 방문만 네이버에(D안)</li><li>모든 요일 자체 예약, 캘린더에 넣기(.ics)</li></ul></td><td>모든 손님</td><td>한 달 동안 신규 예약 수가 네이버 시절보다 크게 줄지 않음</td></tr>
+          <tr><td>V5 손님 인증 · 내 페이지</td><td>2월 이후</td><td><ul><li>문자 인증번호 로그인</li><li>내 예약 목록, 지난 시술·다음 권장 시기</li></ul></td><td>모든 손님</td><td>장기 과제. 개인정보처리방침 고친 뒤</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="why"><b>왜 이렇게 끊었나</b>V0을 손님 없이 원장님만 쓰는 버전으로 둔 이유는 표와 겹침 규칙이 나중에 고치기 가장 어려운 뼈대이기 때문입니다. 뼈대는 손님이 쓰기 전에 검증합니다. V1과 V2를 나눈 이유는 손님 화면의 불편과 실제 운영의 문제를 따로 보려는 것입니다. 대기(V3)를 실전(V2) 뒤에 둔 이유는 대기 자동 제안이 "손님이 링크로 취소한다"는 신호 위에서만 돌기 때문입니다. 전체 마감(V4)을 맨 뒤에 둔 이유는 노출이라는, 되돌려도 바로 회복되지 않는 것이 걸려 있기 때문입니다. V2에서 한 요일만 마감해 보고 노출 숫자를 먼저 재는 것이 3차 논의의 "마감하면 노출이 유지되나"라는 질문에 대한 가장 싼 답입니다. 그 요일은 언제든 다시 네이버에 열 수 있습니다.</div>
+  </section>
+
+  <section class="block">
+    <p class="eyebrow">순차 개발 방법</p>
+    <h2>버전 하나를 이 여섯 걸음으로 돕니다</h2>
+    <div class="loop">
+      <div><b>1 한 장 기획</b>이 버전에서 원장님이 확인할 장면 하나를 글로</div>
+      <div><b>2 시험 먼저</b>store.js 규칙은 시험이 빨간불부터</div>
+      <div><b>3 만들기</b>작업 가지(branch)에서, 기능 하나마다 커밋</div>
+      <div><b>4 시험 모드</b>?local=1로 가짜 손님으로 끝까지 눌러 보기</div>
+      <div><b>5 배포</b>main에 합치면 Vercel이 올림</div>
+      <div><b>6 일주일 써 보기</b>넘어가는 조건을 숫자로 확인</div>
+    </div>
+    <ul>
+      <li>클로드 코드에는 버전 단위로 시킵니다. "V1을 만들어 줘"가 아니라 "V1의 api/slots만, availableSlots 시험부터" 식으로 한 번에 한 파일씩.</li>
+      <li>뼈대 검토는 V0 끝에 한 번 받습니다(2차 논의에서 말한 경은 님과의 골격 설계). 표 모양과 겹침 규칙은 손님 데이터가 쌓인 뒤엔 바꾸기 어렵기 때문입니다.</li>
+      <li>프로젝트 CLAUDE.md에 "예약 넣기는 api/book.js 한 곳에서만", "card_bookings의 exclude 규칙을 지우지 않는다"를 규칙으로 적어 둡니다. AI가 다른 기능을 만들다 이 둘을 건드리지 않게 하려는 것입니다.</li>
+    </ul>
+  </section>
+
+  <section class="block">
+    <p class="eyebrow">우려와 대응</p>
+    <h2>2차 논의에서 나온 걱정마다 답을 붙였습니다</h2>
+    <div class="risk"><h3>신규 손님이 새 예약 방식을 배워야 한다</h3><p><b>대응</b>화면을 세 단계로 줄이고, 단골이 V2~V3 동안 먼저 익숙해진 뒤 V4에서 신규에게 엽니다.</p><p><b>남는 위험</b>네이버 예약 버튼에 익숙한 신규 손님 일부는 링크를 눌러 나가지 않고 이탈할 수 있습니다.</p></div>
+    <div class="risk"><h3>네이버가 주던 편의(검색·네이버페이·캘린더)를 잃는다</h3><p><b>대응</b>검색은 플레이스와 마감한 예약 상품을 남겨 유지, 캘린더는 .ics로, 결제는 원래 매장 결제라 잃는 것이 없습니다. 외부 링크는 제재 없이 돌고 있는 사례를 3차 논의에서 확인했습니다.</p><p><b>확인 필요</b>마감 상태의 예약 상품이 검색 노출에 어떤 영향을 주는지. V2에서 한 요일로 직접 잽니다.</p></div>
+    <div class="risk"><h3>네이버 노출이 줄어든다 (3차 논의)</h3><p><b>대응</b>예약은 끄지 않고 마감(B안). 지금부터 스마트플레이스 통계의 주간 조회·예약 클릭을 적어 두고, V2 전후를 비교합니다. 줄었으면 신규 첫 방문만 네이버에 여는 D안으로 갑니다.</p><p><b>남는 위험</b>"예약·페이 쓰는 업체를 먼저 보여 준다"는 전제 자체를 공식 자료로 확인하지 못했습니다. 숫자로만 판단할 수 있습니다.</p></div>
+    <div class="risk"><h3>개인정보</h3><p><b>대응</b>이름·번호·시술만 받고, 뒷자리 단독 로그인은 쓰지 않고, 기록 페이지는 인증번호를 붙이는 V5까지 미룹니다.</p><p><b>남는 위험</b>개인 링크가 담긴 문자를 손님이 남에게 보내면 그 사람이 예약을 볼 수 있습니다. 링크로는 보기·취소만 되고 다른 정보는 안 보이게 합니다.</p></div>
+    <div class="risk"><h3>1인이 만들고 운영한다</h3><p><b>대응</b>겹침은 DB가 막고, 계산은 시험으로 박아 두고, 예약 페이지에 "안 되면 카톡 채널로" 안내를 고정합니다. 처음 화면에 "오늘 예약 N건" 확인 줄을 둡니다.</p><p><b>남는 위험</b>Vercel·Supabase가 멈추면 그동안 예약이 안 들어옵니다. 무료 요금제의 Supabase는 일주일 안 쓰면 멈추는데, 매일 쓰는 가게라 해당은 적습니다.</p></div>
+    <div class="risk"><h3>전환 기간의 두 달력</h3><p><b>대응</b>요일로 나눕니다. 다른 요일의 네이버 예약도 이 표에 옮겨 적어 같은 규칙으로 검사받게 합니다.</p><p><b>남는 위험</b>옮겨 적기는 V4 전까지 남습니다. 그래서 V2~V3를 길게 끌지 않습니다.</p></div>
+    <div class="risk"><h3>문자 비용</h3><p><b>대응</b>확정 문자 한 통에 개인 링크를 함께 넣습니다. 인증번호 문자는 V5부터라 그 전엔 늘지 않습니다.</p><p><b>남는 위험</b>대기 제안은 취소 한 건에 최대 세 통이라 대기가 많으면 늘어납니다. 발송킹 잔액을 처음 화면에서 봅니다(이미 있음).</p></div>
+  </section>
+
+</main>
+
+<footer class="band-ink" style="margin-top:56px">
+  <div class="wrap">
+    <p class="eyebrow">V0 시작 전에 정할 것</p>
+    <h2>여섯 가지만 정하면 V0을 시작할 수 있습니다</h2>
+    <div class="asks">
+      <div><em>1</em><p>영업시간과 정기 휴무<small>요일마다 몇 시부터 몇 시까지, 마지막 시술이 끝나야 하는 시각</small></p></div>
+      <div><em>2</em><p>시술 사이 정리 시간<small>예: 10분. 모든 시술에 같게 할지, 펌·염색만 길게 할지</small></p></div>
+      <div><em>3</em><p>손님에게 열어 둘 기간<small>2주 또는 4주. 길면 선예약이 쉬워지고, 짧으면 취소가 줄어듭니다</small></p></div>
+      <div><em>4</em><p>V2에서 자체 예약으로 돌릴 요일<small>네이버 신규 예약이 가장 적은 요일이 후보</small></p></div>
+      <div><em>5</em><p>네이버 노출 기준 숫자 적기 시작<small>지금부터 스마트플레이스 통계의 주간 조회·예약 클릭을 적어 둡니다. V2에서 비교할 "마감 전" 숫자라 V2 전에 최소 4주가 필요합니다</small></p></div>
+      <div><em>6</em><p>네이버에 걸 링크 자리와 안내 글<small>예약 안내·플레이스 소식·인스타 프로필 중 어디에 걸지, 초안 글을 을한 님 말투로 고치기</small></p></div>
+    </div>
+    <p class="foot">기준: peace7892/haironenest-card-share 저장소 10.29 공유본, 10.11~10.29 카카오톡 대화, 10.29 코칭 2차·3차 논의 기록. 기간은 1인 바이브 코딩 속도를 가정한 처음 값입니다. 11월 고도화 세션이 열리면 V0·V1을 그 세션의 실습 과제로 맞출 수 있습니다.</p>
+  </div>
+</footer>
